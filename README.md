@@ -18,6 +18,9 @@ are expected to follow.
 - [Multiplayer: comparison and a common standard](docs/multiplayer/comparison-and-proposal.md):
   how the three existing multiplayer implementations work, and a layered proposal (relay, handshake,
   presence, two sync profiles, saves). Status: draft for discussion.
+- [Save tail v2](docs/saves/save-tail-v2.md): how non-retail state (rule sets, per-town extension state,
+  UI state) travels inside a `.sav` that retail still opens. Status: implemented in OpenBA, proposed for
+  adoption.
 
 ## How changes are made
 

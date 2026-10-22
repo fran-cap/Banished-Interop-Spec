@@ -129,6 +129,7 @@ Every project gets the bottom three layers; the lockstep and separate-town profi
 
 - A multiplayer block that retail skips: room, seat-to-player map, outbox, last ids seen.
 - banished-multiplayer and neighbour-towns already keep their own versions of this block.
+- A candidate carrier: the [save tail v2](../saves/save-tail-v2.md) chunk inside block 1, which retail ignores.
 
 ## Path to agreement
 
