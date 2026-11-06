@@ -22,6 +22,15 @@ are expected to follow.
 ## How changes are made
 
 - A spec change is a pull request; discussion happens in issues.
-- A standard is adopted once every participating maintainer has approved it.
+- A standard (or one layer of it) is adopted once the maintainer of every project that implements
+  it has approved it. Maintainers of projects that do not implement it are advisory.
+- A maintainer may ask to be advisory for any standard; their approval is then not required.
 - A spec describes wire formats and behaviour only. No game content (retail assets, shaders,
   `.rsc` / `.pkg` data) belongs in this repository.
+
+## Licence
+
+- Documents (specs, prose, diagrams): [CC BY 4.0](LICENSE).
+- Code, schemas and example messages: [MIT](LICENSE-CODE), so they can be copied into any
+  participating project, whatever its own licence.
+- A contribution is made under the licence of the part it changes.

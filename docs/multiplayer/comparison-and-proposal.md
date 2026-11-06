@@ -1,6 +1,6 @@
 # Banished Multiplayer: Comparison and a Common Standard
 
-As of 2026-10-21 · proposal, open for discussion
+As of 2026-10-21, with maintainer corrections through 2026-10-23 · proposal, open for discussion
 
 ## Summary
 
@@ -13,20 +13,20 @@ The three also run on three different engines: a hook into the retail exe, a Rus
 |  | [banished-multiplayer](https://github.com/BarryBareth/banished-multiplayer) | [unbanished](https://github.com/tanepiper/unbanished) | [OpenBA neighbour-towns](https://github.com/dreadylocks/OpenBA/tree/neighbour-towns) |
 | --- | --- | --- | --- |
 | Built on | Retail 1.0.7 x64, hooked through a `dinput8.dll` proxy (MinHook) + a `.pkm` data mod | Rust reimplementation (wgpu, WebAssembly build), aims for 1:1 with retail | C++ reimplementation fork, as the off-by-default extension `ext.neighbour` |
-| Licence | MIT | MIT OR Apache-2.0 | Fork of OpenBA |
-| Version | 0.9.4 | 0.4.0 beta (multiplayer since 0.3.0) | Milestones M0 to M3 built |
+| Licence | MIT | MIT OR Apache-2.0 | GPL-3.0 (inherited from OpenBA) |
+| Version | 0.9.5 | 0.4.1 beta (multiplayer since 0.3.0) | Milestones M0 to M3 built |
 | Game model | Shared town, or separate towns on one map (trade, shared storage, lent workplaces) | Shared town only; separate towns planned | Separate towns on one shared map; land, buildings, roads and trees mirrored; citizens, fire, disease and weather not shared |
-| Players | Up to 8 by Steam lobby; no cap found over TCP | No cap found; tested with 3 over the network | Exactly 2 |
-| Sync | Lockstep, 60 Hz, 150 ms input delay, `TURN` messages | Lockstep, 60 Hz, 6-tick (100 ms) delay, `Turn` messages | Event exchange; same seed = same land; trees on their own RNG |
-| Desync check | Every 600 ticks: hash of the random-draw chain + sim-heap layout | Every 600 ticks: CRC-32 of the encoded save minus camera and UI | Land height hash only; a mismatch warns |
-| Recovery | Automatic resync: host save sent as base64 in 45 KB chunks | Automatic resync with the host save + rewind of players ahead or behind | None; the planned repair snapshot is not built |
-| Join mid-game | Yes, through resync; reconnect token | No | Yes: the relay replays stored claims, buildings and roads |
+| Players | Separate towns: up to 8 (the save format and share masks are 8-bit); Steam lobbies made for 8; shared town tested with 3 | No cap found; tested with 3 over the network | Exactly 2 |
+| Sync | Lockstep, 60 Hz, 150 ms input delay (a time budget converted to ticks at the shared speed, clamped to 3 to 600 ticks; settable from 30 to 1000 ms), `TURN` messages | Lockstep, 60 Hz, 6-tick (100 ms) delay, `Turn` messages | Event exchange; same seed = same land; trees on their own RNG |
+| Desync check | Every 600 ticks: hash of the random-draw chain + sim-heap layout | Every 600 ticks: CRC-32 of the encoded save minus camera and UI; the server compares digests and keeps the town most players have (the host's on a tie), or its own with `simulate` | Land height hash only; a mismatch warns |
+| Recovery | Automatic resync: host save sent as base64 in 45 KB chunks | Automatic resync: the kept town's save is sent to the players who differ | None; the planned repair snapshot is not built |
+| Join mid-game | Yes, through resync; reconnect token | Yes, while the host is in the game: every player continues from one save of a chosen tick; a player who left can join again | Yes: the relay replays stored claims, buildings and roads |
 | Speed and pause | Shared (`CTL`) | Shared commands; the pause menu does not pause | Not linked (planned as M4) |
-| Transport | Steam lobby, a TCP relay with room codes, or direct TCP (port forward) | WebSocket relay that passes data through unread; room codes | WebSocket over TLS to a Cloudflare relay; lobby list |
+| Transport | Steam lobby, a TCP relay with room codes, or direct TCP (port forward) | `unbanished-server`: room codes, room passwords, a room list, a health check, a settings file and a Dockerfile; can keep a room's town on disk; the desktop game can run it; TLS through a proxy | WebSocket over TLS to a Cloudflare relay; lobby list |
 | Wire format | Newline-terminated text lines | postcard (binary) | Flat JSON, 16 KB per message |
-| Version check | Build id = version + hash of the DLL code; refused with `BADVERSION` | None (designed, not built) | Protocol version only |
-| Auth and encryption | None (Steam traffic goes through Valve's relays) | None, plain `ws://` | Shared room password + TLS; a seat is matched by town name |
-| Mod check | None | None | None |
+| Version check | Build id = version + hash of the DLL code; refused with `BADVERSION` | `Hello` (protocol 4): protocol, engine name and version, fingerprints of the game data, the ordered mod list and the rule hooks; a mismatch is refused with a readable reason | Protocol version only |
+| Auth and encryption | None (Steam traffic goes through Valve's relays); the relay gives the host a token, so only the original host can reclaim a room | Room passwords in the protocol (not yet settable in the game); TLS through a proxy; no per-seat token | Shared room password + TLS; a seat is matched by town name |
+| Mod check | Ordered list of enabled mods (file name + size) in the hello; a mismatch is refused and names what differs; changing mods without a restart blocks hosting and joining | A fingerprint of the ordered mod list, checked at `Hello`; the refusal cannot name the mod | None |
 | Platforms | Windows; Steam and GOG players together | Windows, macOS, Linux, browser; browser and native players together | Windows only |
 | Tests | ~70 UI scripts, multi-instance harness, desync diff tools | Lockstep tests with injected jitter and corruption; record and replay | 13 unit tests, 40 relay checks; one PC against a stand-in script, no two-player game yet |
 
@@ -42,7 +42,7 @@ Strengths:
 
 Weaknesses:
 
-- Tied to one exe build through hard-coded addresses; a game patch breaks it.
+- Tied to the two 1.0.7 builds (Steam and GOG) through an address table; a new game patch would need a new table, though Banished has not been patched since 2017.
 - The desync hash covers the random-draw chain, so a state difference goes unseen until it changes a draw.
 - Window commands name their target by deterministic-heap offset, which no other engine can reproduce.
 - No encryption or authentication; the host is a single point of failure with no migration.
@@ -58,9 +58,9 @@ Strengths:
 
 Weaknesses:
 
-- No version, data or mod handshake: a mismatch shows up only as repeated resyncs.
-- No join mid-game or rejoin; nobody compares digests once the host leaves.
-- No authentication or TLS, and no public relay.
+- The mod check sends one fingerprint, so a refusal cannot say which mod differs.
+- A game cannot be joined after its host has left.
+- No per-seat token, no chat or cursors, TLS only through a proxy, and no public relay.
 - Cross-platform determinism is proven only for arm64 and Chromium.
 
 ### OpenBA neighbour-towns
@@ -76,7 +76,7 @@ Strengths:
 Weaknesses:
 
 - Two players, Windows only.
-- The default relay address is hard-coded to one Cloudflare account.
+- The default relay address is hard-coded to one Cloudflare account; it is planned to become a setting.
 - Drift is possible: a tree felled by both towns, saplings growing apart, pathfinding unaware of the neighbour's buildings.
 - Seats are matched by town name behind one shared password, and no two-player game has been played yet.
 
@@ -125,6 +125,10 @@ Every project gets the bottom three layers; the lockstep and separate-town profi
 - Two additions to the current neighbour-towns design: a periodic snapshot to repair drift, and a harvest lease so two towns cannot fell the same tree.
 - This profile can work across engines. Agreed goods and family messages would let a retail-hook player trade with an OpenBA player.
 
+### Not yet a profile: shared town without lockstep
+
+- neighbour-towns plans a co-op mode in which players share one town over the relay without lockstep, so one side (host or server) owns the simulation. Neither 3a nor 3b covers this; it would be a third profile, outside v1.
+
 ### Layer 4: saves
 
 - A multiplayer block that retail skips: room, seat-to-player map, outbox, last ids seen.
@@ -154,5 +158,7 @@ Source code and docs of each repository were read at the commits below; none of 
 - [BarryBareth/banished-multiplayer](https://github.com/BarryBareth/banished-multiplayer), commit `dc55b0f` (2026-10-19, version 0.9.4): `src/net.cpp`, `src/hooks.cpp`, `src/commands.cpp`, `docs/HOW_IT_WORKS.md`, `docs/RELAY.md`
 - [tanepiper/unbanished](https://github.com/tanepiper/unbanished), commit `3dcbfff` (2026-10-21, version 0.4.0): `apps/game/src/gameplay/lockstep.rs`, `crates/net`, `crates/sim/src/command.rs`, `docs/MULTIPLAYER-PLAN.md`, `docs/guide/MULTIPLAYER.md`
 - [dreadylocks/OpenBA, branch neighbour-towns](https://github.com/dreadylocks/OpenBA/tree/neighbour-towns), commit `69fc77c` (2026-10-20): `docs/fork/NEIGHBOUR_TOWNS.md`, `src/ext/neighbour/`, `tools/neighbour_server/`
+
+The tables were then corrected from the maintainers' own accounts: banished-multiplayer 0.9.5 and neighbour-towns in [issue #1](https://github.com/fran-cap/Banished-Interop-Spec/issues/1), unbanished 0.4.1 in [issue #3](https://github.com/fran-cap/Banished-Interop-Spec/issues/3).
 
 Corrections are welcome as issues or pull requests.
